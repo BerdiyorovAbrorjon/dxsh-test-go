@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/color"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
@@ -107,31 +108,42 @@ func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("PDF oqishda xatolik: %v", err)
 	}
+	pageCount := ctx.PageCount
+
+	// Add new page to end of the document
+	err = api.InsertPages(in, out, []string{fmt.Sprintf("%d", pageCount)}, false, pdfcpu.DefaultPageConfiguration(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("sahifa qo'shishda xatolik: %v", err)
+	}
+	mid := out.Bytes()
+	in = bytes.NewReader(mid)
+	out.Reset()
+	pageCount++
 
 	var pageWidth = 595.0  // A4 width (210 mm)
 	var pageHeight = 842.0 // A4 height (297 mm)
 
 	// Simple and working layout configuration
-	itemsPerRow := 2           // 2 signatures per row
-	
+	itemsPerRow := 2 // 2 signatures per row
+
 	// Simple positioning - use negative values for TopCenter positioning
 	// TopCenter means offset from center of page
-	startX := -150.0           // Start position for first signature
-	startY := -120.0           // Start position with proper top margin
-	
+	startX := -150.0 // Start position for first signature
+	startY := -120.0 // Start position with proper top margin
+
 	horizontalSpacing := 300.0 // Horizontal spacing between signatures
 	verticalSpacing := 280.0   // Vertical spacing between rows
 	qrTextSpacing := 80.0      // Space between QR and text (QR above text)
-	
+
 	// Signature component sizing
-	qrSize := 0.15             // QR code scale 
-	textScale := 0.35          // Text scale for readability
-	fontSize := 9              // Font size for better fit (int type)
+	qrSize := 0.15    // QR code scale
+	textScale := 0.35 // Text scale for readability
+	fontSize := 9     // Font size for better fit (int type)
 
 	// Simple calculation for max rows
-	maxRowsPerPage := 2  // Keep it simple - 2 rows per page
-	
-	log.Printf("A4 Layout: %.0fx%.0f points, Simple positioning with %d max rows", 
+	maxRowsPerPage := 2 // Keep it simple - 2 rows per page
+
+	log.Printf("A4 Layout: %.0fx%.0f points, Simple positioning with %d max rows",
 		pageWidth, pageHeight, maxRowsPerPage)
 
 	// Group signatures by pages
@@ -139,7 +151,7 @@ func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byt
 
 	for i, signature := range signatureList {
 		// Simple approach: put all signatures on the last page but with proper positioning
-		actualPage := ctx.PageCount
+		actualPage := pageCount
 
 		// Calculate position for proper grid layout
 		row := i / itemsPerRow
@@ -163,7 +175,7 @@ func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byt
 		qrWm.Pos = types.TopCenter
 		qrWm.Dx = qrX
 		qrWm.Dy = qrY
-		qrWm.Scale = qrSize  // Use optimized QR size
+		qrWm.Scale = qrSize // Use optimized QR size
 		qrWm.Rotation = 0
 		qrWm.Diagonal = 0
 
@@ -177,9 +189,9 @@ func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byt
 		textWm.Dx = textX
 		textWm.Dy = textY
 		textWm.FontName = "Times-Roman"
-		textWm.FontSize = fontSize         // Use optimized font size
-		textWm.ScaledFontSize = fontSize   // Use optimized font size
-		textWm.Scale = textScale           // Use optimized text scale
+		textWm.FontSize = fontSize       // Use optimized font size
+		textWm.ScaledFontSize = fontSize // Use optimized font size
+		textWm.Scale = textScale         // Use optimized text scale
 		textWm.Color = color.Black
 		textWm.StrokeColor = color.Black
 		textWm.FillColor = color.Black

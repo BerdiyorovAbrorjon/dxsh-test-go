@@ -1,240 +1,330 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
-	"os"
-	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/color"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
-	"github.com/skip2/go-qrcode"
 )
 
-const (
-	maxLineLength = 32
-)
+// func main() {
 
-type SignatureInfo struct {
-	QRContext string
-	TextList  []string
-}
+// }
 
-func main() {
+// // 1) PDF faylni []byte ko‘rinishida o‘qib olamiz
+// inputPDF, err := os.ReadFile("input.pdf")
+// if err != nil {
+// 	log.Fatalf("PDF o‘qishda xatolik: %v", err)
+// }
 
-	inFile := "blank.pdf"
-	signatureList := []SignatureInfo{
-		{
-			QRContext: "https://example.com/signature1",
-			TextList: []string{
-				"“Tayyorlandi”",
-				"“NAVOIY VILOYATI UCHQUDUQ TUMAN KAMBAG'ALLIKNI QISQARTIRISH VA BANDLIKKA KO'MAKLASHISH BO'LIMI” DAVLAT MUASSASASI",
-				"KARIMOV JAHONGIR RAXMONBERDI O‘G‘LI",
-				"2023 yil 15 fevral",
-			},
-		},
-		{
-			QRContext: "https://example.com/signature1",
-			TextList: []string{
-				"“Tayyorlandi”",
-				"“NAVOIY VILOYATI UCHQUDUQ TUMAN KAMBAG'ALLIKNI QISQARTIRISH VA BANDLIKKA KO'MAKLASHISH BO'LIMI” DAVLAT MUASSASASI",
-				"KARIMOV JAHONGIR RAXMONBERDI O‘G‘LI",
-				"2023 yil 15 fevral",
-			},
-		},
-		{
-			QRContext: "https://example.com/signature2",
-			TextList: []string{
-				"“Kelishildi”",
-				"“O‘ZBEKISTON RESPUBLIKASI IQTISODIYOT VA MOLIYA VAZIRLIGI HUZURIDAGI AXBOROT TEXNOLOGIYALARI MARKAZI” DAVLAT UNITAR KORXONASI",
-				"AXMADOV DILMUROD ELMUROD O‘G‘LI",
-				"2023 yil 16 fevral",
-			},
-		},
-		{
-			QRContext: "https://example.com/signature2",
-			TextList: []string{
-				"“Kelishildi”",
-				"“O‘ZBEKISTON RESPUBLIKASI IQTISODIYOT VA MOLIYA VAZIRLIGI HUZURIDAGI AXBOROT TEXNOLOGIYALARI MARKAZI” DAVLAT UNITAR KORXONASI",
-				"AXMADOV DILMUROD ELMUROD O‘G‘LI",
-				"2023 yil 16 fevral adsfasd afdasdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf asdf ",
-			},
-		},
-		{
-			QRContext: "https://example.com/signature2",
-			TextList: []string{
-				"“Kelishildi”",
-				"“O‘ZBEKISTON RESPUBLIKASI IQTISODIYOT VA MOLIYA VAZIRLIGI HUZURIDAGI AXBOROT TEXNOLOGIYALARI MARKAZI” DAVLAT UNITAR KORXONASI",
-				"AXMADOV DILMUROD ELMUROD O‘G‘LI",
-				"2023 yil 16 fevral",
-			},
-		},
-	}
+// // 2) QR code ni []byte ko‘rinishida yaratamiz
+// qrBytes, err := qrcode.Encode("https://example.com", qrcode.Medium, 256)
+// if err != nil {
+// 	log.Fatalf("QR code yaratishda xatolik: %v", err)
+// }
 
-	pdfFile, err := os.Open(inFile)
+// // 3) Biz yozgan test3Bytes funksiyasini chaqiramiz
+// outputBytes, err := test3Bytes(inputPDF, qrBytes)
+// if err != nil {
+// 	log.Fatalf("Xatolik: %v", err)
+// }
+
+// // 4) Natijani faylga yozib ko‘ramiz
+// err = os.WriteFile("output.pdf", outputBytes, 0644)
+// if err != nil {
+// 	log.Fatalf("Natijani yozishda xatolik: %v", err)
+// }
+
+// 	test2()
+// 	fmt.Println("✅ PDF muvaffaqiyatli yaratildi: output.pdf")
+// }
+
+// // // PDF oxiriga matn qo'shish funksiyasi
+// func addTextToPDF(inputPath, outputPath, text string) error {
+// 	// 1-usul: Stamp yordamida matn qo'shish
+// 	// return addTextWithStamp(inputPath, outputPath, text)
+// 	// 2-usul: Yangi sahifa qo'shib, unga matn yozish
+// 	// return addTextWithNewPage(inputPath, outputPath, text)
+// 	// 3-usul: Batafsil parametrlar bilan matn qo'shish
+// 	// return addTextWithDetailedOptions(inputPath, outputPath, text)
+// 	// 4-usul: Ko'p qatorli matn qo'shish
+// 	lines := []string{"Birinchi qator", "Ikkinchi qator", "Uchinchi qator"}
+// 	return addMultilineText(inputPath, outputPath, lines)
+// 	// 5-usul: Maxsus pozitsiya bilan matn qo'shish
+// 	// return addTextAtCustomPosition(inputPath, outputPath, text, 100, 200)
+// }
+
+// // Stamp yordamida matn qo'shish
+// func addTextWithStamp(inputPath, outputPath, text string) error {
+// 	// Watermark konfiguratsiyasi
+// 	wm, err := pdfcpu.ParseTextWatermarkDetails(text, "font:Helvetica, points:12, pos:bl, off:50 50", false, types.POINTS)
+// 	if err != nil {
+// 		return fmt.Errorf("watermark yaratishda xatolik: %v", err)
+// 	}
+
+// 	// PDF faylni o'qish
+// 	conf := model.NewDefaultConfiguration()
+
+// 	// Watermark qo'shish
+// 	err = api.AddWatermarksFile(inputPath, outputPath, nil, wm, conf)
+// 	if err != nil {
+// 		return fmt.Errorf("matn qo'shishda xatolik: %v", err)
+// 	}
+
+// 	return nil
+// }
+
+// // Yangi sahifa qo'shib, unga matn yozish
+// func addTextWithNewPage(inputPath, outputPath, text string) error {
+// 	conf := model.NewDefaultConfiguration()
+
+// 	// Avval PDF ni o'qimiz
+// 	ctx, err := api.ReadContextFile(inputPath)
+// 	if err != nil {
+// 		return fmt.Errorf("PDF o'qishda xatolik: %v", err)
+// 	}
+// 	pageCount := ctx.PageCount // mavjud sahifalar soni
+
+// 	// Oxiridan keyin qo‘shish uchun: n+1
+// 	insertAt := []string{fmt.Sprintf("%d", pageCount)} // masalan, "6"
+
+// 	// Yangi sahifa qo'shamiz
+// 	err = api.InsertPagesFile(inputPath, "temp.pdf", insertAt, false, pdfcpu.DefaultPageConfiguration(), conf)
+// 	if err != nil {
+// 		return fmt.Errorf("sahifa qo'shishda xatolik: %v", err)
+// 	}
+
+// 	// Yangi sahifaga matn qo'shamiz
+// 	wm, err := pdfcpu.ParseTextWatermarkDetails(text, "font:Courier, points:14, pos:c", false, types.POINTS)
+// 	if err != nil {
+// 		return fmt.Errorf("watermark yaratishda xatolik: %v", err)
+// 	}
+
+// 	err = api.AddWatermarksFile("temp.pdf", outputPath, []string{"-1"}, wm, conf)
+// 	if err != nil {
+// 		return fmt.Errorf("matn qo'shishda xatolik: %v", err)
+// 	}
+
+// 	// Vaqtinchalik faylni o'chirish
+// 	os.Remove("temp.pdf")
+
+// 	return nil
+// }
+
+// // Batafsil parametrlar bilan matn qo'shish
+// func addTextWithDetailedOptions(inputPath, outputPath, text string) error {
+// 	// Batafsil konfiguratsiya
+// 	options := "font:Times-Roman, points:16, pos:bc, rot:0, op:0.8, col:0.2 0.2 0.8, off:0 30"
+
+// 	wm, err := pdfcpu.ParseTextWatermarkDetails(text, options, false)
+// 	if err != nil {
+// 		return fmt.Errorf("watermark yaratishda xatolik: %v", err)
+// 	}
+
+// 	conf := model.NewDefaultConfiguration()
+
+// 	err = api.AddWatermarksFile(inputPath, outputPath, nil, wm, conf)
+// 	if err != nil {
+// 		return fmt.Errorf("matn qo'shishda xatolik: %v", err)
+// 	}
+
+// 	return nil
+// }
+
+// // Ko'p qatorli matn qo'shish
+// func addMultilineText(inputPath, outputPath string, lines []string) error {
+// 	conf := model.NewDefaultConfiguration()
+
+// 	// Har bir qator uchun alohida watermark
+// 	for i, line := range lines {
+// 		tempOutput := fmt.Sprintf("temp_%d.pdf", i)
+// 		currentInput := inputPath
+
+// 		if i > 0 {
+// 			currentInput = fmt.Sprintf("temp_%d.pdf", i-1)
+// 		}
+
+// 		// Y pozitsiyasini har safar o'zgartirish
+// 		yOffset := 50 + (i * 20) // Har qator uchun 20 piksel farq
+// 		options := fmt.Sprintf("font:Helvetica, points:10, pos:bl, off:50 %d", yOffset)
+
+// 		wm, err := pdfcpu.ParseTextWatermarkDetails(line, options, false, types.POINTS)
+// 		if err != nil {
+// 			return fmt.Errorf("watermark yaratishda xatolik: %v", err)
+// 		}
+
+// 		finalOutput := outputPath
+// 		if i < len(lines)-1 {
+// 			finalOutput = tempOutput
+// 		}
+
+// 		err = api.AddWatermarksFile(currentInput, finalOutput, nil, wm, conf)
+// 		if err != nil {
+// 			return fmt.Errorf("matn qo'shishda xatolik: %v", err)
+// 		}
+
+// 		// Vaqtinchalik fayllarni tozalash
+// 		if i > 0 {
+// 			os.Remove(currentInput)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// // Maxsus pozitsiya bilan matn qo'shish
+// func addTextAtCustomPosition(inputPath, outputPath, text string, x, y float64) error {
+// 	options := fmt.Sprintf("font:Helvetica, points:12, pos:tl, off:%.0f %.0f", x, y)
+
+// 	wm, err := pdfcpu.ParseTextWatermarkDetails(text, options, false, types.POINTS)
+// 	if err != nil {
+// 		return fmt.Errorf("watermark yaratishda xatolik: %v", err)
+// 	}
+
+// 	conf := model.NewDefaultConfiguration()
+
+// 	err = api.AddWatermarksFile(inputPath, outputPath, nil, wm, conf)
+// 	if err != nil {
+// 		return fmt.Errorf("matn qo'shishda xatolik: %v", err)
+// 	}
+
+// 	return nil
+// }
+
+// func test() {
+// Unique abbreviations are accepted for all watermark descriptor parameters.
+// eg. sc = scalefactor or rot = rotation
+
+// Add a "Demo" watermark to all pages of in.pdf along the diagonal running from lower left to upper right.
+// onTop := false
+// update := false
+// wm, err := api.TextWatermark("Demo", "", onTop, update, types.POINTS)
+// if err != nil {
+// 	fmt.Println("Error creating watermark: 167 ", err)
+// }
+// err = api.AddWatermarksFile("input.pdf", "output.pdf", nil, wm, nil)
+// if err != nil {
+// 	fmt.Println("Error adding watermark: 171 ", err)
+// }
+
+// Stamp all odd pages of input.pdf in red "Confidential" in 48 point Courier
+// using a rotation angle of 45 degrees and an absolute scalefactor of 1.0.
+// onTop = true
+// wm, err = api.TextWatermark("Confidential", "font:Courier, points:48, col: 1 0 0, rot:45, scale:1 abs", onTop, update, types.POINTS)
+// if err != nil {
+// 	fmt.Println("Error creating watermark: 176 ", err)
+// }
+// err = api.AddWatermarksFile("input.pdf", "output.pdf", []string{"odd"}, wm, nil)
+// if err != nil {
+// 	fmt.Println("Error adding watermark: 183 ", err)
+// }
+
+// Add image stamps to input.pdf using absolute scaling and a negative rotation of 90 degrees.
+// wm, err = api.ImageWatermark("image.png", "scalefactor:.5 a, rot:-90, pos:tl, off:0 0", onTop, update, types.POINTS)
+// if err != nil {
+// 	fmt.Println("Error creating watermark: ImageWatermark: ", err)
+// }
+// err = api.AddWatermarksFile("input.pdf", "output.pdf", nil, wm, nil)
+// if err != nil {
+// 	fmt.Println("Error adding watermark: 193 ", err)
+// }
+
+// Add a PDF stamp to all pages of input.pdf using the 2nd page of stamp.pdf, use absolute scaling of 0.5
+// and rotate along the 2nd diagonal running from upper left to lower right corner.
+// wm, err = api.PDFWatermark("stamp.pdf:2", "scale:.5 abs, diagonal:2", onTop, update, types.POINTS)
+// if err != nil {
+// 	fmt.Println("Error creating watermark: PDFWatermark: ", err)
+// }
+// err = api.AddWatermarksFile("input.pdf", "output.pdf", nil, wm, nil)
+// if err != nil {
+// 	fmt.Println("Error adding watermark: 204 ", err)
+// }
+// }
+
+func test2() {
+	inFile := "input.pdf"
+	outFile := "output.pdf"
+	imageFile := "qrcode.png"
+
+	// Avval input.pdf ni output.pdf ga ko‘chirib olamiz
+	err := api.OptimizeFile(inFile, outFile, nil)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to prepare output file: %v", err)
 	}
-	defer pdfFile.Close()
 
-	pdfData, err := io.ReadAll(pdfFile)
+	// PDF ni o‘qib, sahifa sonini aniqlaymiz
+	ctx, err := api.ReadContextFile(outFile)
 	if err != nil {
-		panic(err)
+		log.Fatalf("PDF o‘qishda xatolik: %v", err)
 	}
+	pageCount := ctx.PageCount
+	targetPage := fmt.Sprintf("%d", pageCount)
 
-	out, err := AddSignatureListToPDF(pdfData, signatureList)
+	// 1) QR code qo‘shish
+	qrWm, err := api.ImageWatermark(imageFile, "pos:tc, scale:0.16, off:-150 -50, rot:0", true, true, types.POINTS)
 	if err != nil {
-		log.Fatalf("PDF ga QR code qoshishda xatolik: %v", err)
+		fmt.Println("Error creating watermark: ImageWatermark: ", err)
 	}
-
-	err = os.WriteFile("output.pdf", out, 0644)
+	err = api.AddWatermarksFile(outFile, outFile, []string{targetPage}, qrWm, nil)
 	if err != nil {
-		log.Fatalf("Natija PDF faylini yozishda xatolik: %v", err)
+		log.Println("Error adding QR code watermark: ", err)
 	}
 
-	log.Println("PDF ga QR code muvaffaqiyatli qoshildi:output.pdf")
-}
+	// 2) Chapdagi matn
+	leftText := model.DefaultWatermarkConfig()
+	leftText.Mode = model.WMText
+	leftText.TextString = "“Tayyorlandi”\n" +
+		"“NAVOIY VILOYATI UCHQUDUQ TUMAN\n" +
+		"KAMBAG'ALLIKNI QISQARTIRISH VA\n" +
+		"BANDLIKKA KO'MAKLASHISH BO'LIMI”\n" +
+		"DAVLAT MUASSASASI\n" +
+		"Test Xususiy sherik uchun"
+	leftText.Pos = types.TopCenter
+	leftText.Dx = -150
+	leftText.Dy = -150
+	leftText.FontName = "Times-Roman"
+	leftText.FontSize = 10
+	leftText.ScaledFontSize = 10
+	leftText.Scale = 0.4
+	leftText.Color = color.Black
+	leftText.StrokeColor = color.Black
+	leftText.FillColor = color.Black
+	leftText.Rotation = 0
+	leftText.Diagonal = 0
 
-func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byte, error) {
-	in := bytes.NewReader(pdfData)
-	out := new(bytes.Buffer)
-
-	ctx, err := api.ReadAndValidate(in, model.NewDefaultConfiguration())
+	err = api.AddWatermarksFile(outFile, outFile, []string{targetPage}, leftText, nil)
 	if err != nil {
-		return nil, fmt.Errorf("PDF oqishda xatolik: %v", err)
+		log.Println("Error adding left text watermark: ", err)
 	}
 
-	var pageWidth = 595.0  // A4 width (210 mm)
-	var pageHeight = 842.0 // A4 height (297 mm)
+	rightText := model.DefaultWatermarkConfig()
+	rightText.Mode = model.WMText
+	rightText.TextString = "“Kelishildi”\n" +
+		"“O‘ZBEKISTON RESPUBLIKASI IQTISODIYOT\n" +
+		"VA MOLIYA VAZIRLIGI HUZURIDAGI\n" +
+		"AXBOROT TEXNOLOGIYALARI MARKAZI”\n" +
+		"DAVLAT UNITAR KORXONASI\n" +
+		"AXMADOV DILMUROD ELMUROD O‘G‘LI"
+	rightText.Pos = types.TopCenter
+	rightText.Dx = 150
+	rightText.Dy = -50
+	rightText.FontName = "Times-Roman"
+	rightText.FontSize = 10
+	rightText.ScaledFontSize = 10
+	rightText.Scale = 0.4
+	rightText.Color = color.Black
+	rightText.StrokeColor = color.Black
+	rightText.FillColor = color.Black
+	rightText.Rotation = 0
+	rightText.Diagonal = 0
 
-	// Simple and working layout configuration
-	itemsPerRow := 2           // 2 signatures per row
-	
-	// Simple positioning - use negative values for TopCenter positioning
-	// TopCenter means offset from center of page
-	startX := -150.0           // Start position for first signature
-	startY := -120.0           // Start position with proper top margin
-	
-	horizontalSpacing := 300.0 // Horizontal spacing between signatures
-	verticalSpacing := 280.0   // Vertical spacing between rows
-	qrTextSpacing := 80.0      // Space between QR and text (QR above text)
-	
-	// Signature component sizing
-	qrSize := 0.15             // QR code scale 
-	textScale := 0.35          // Text scale for readability
-	fontSize := 9              // Font size for better fit (int type)
-
-	// Simple calculation for max rows
-	maxRowsPerPage := 2  // Keep it simple - 2 rows per page
-	
-	log.Printf("A4 Layout: %.0fx%.0f points, Simple positioning with %d max rows", 
-		pageWidth, pageHeight, maxRowsPerPage)
-
-	// Group signatures by pages
-	pageWatermarks := make(map[int][]*model.Watermark)
-
-	for i, signature := range signatureList {
-		// Simple approach: put all signatures on the last page but with proper positioning
-		actualPage := ctx.PageCount
-
-		// Calculate position for proper grid layout
-		row := i / itemsPerRow
-		col := i % itemsPerRow
-
-		// Calculate position for this signature using optimized spacing
-		textX := startX + float64(col)*horizontalSpacing
-		textY := startY - float64(row)*verticalSpacing
-		qrX := textX
-		qrY := textY + qrTextSpacing
-
-		// Generate and add QR code watermark
-		qrBytes, err := qrCodeGenerate(signature.QRContext)
-		if err != nil {
-			return nil, fmt.Errorf("QR code yaratishda xatolik: %v", err)
-		}
-
-		qrWm := model.DefaultWatermarkConfig()
-		qrWm.Mode = model.WMImage
-		qrWm.Image = bytes.NewReader(qrBytes)
-		qrWm.Pos = types.TopCenter
-		qrWm.Dx = qrX
-		qrWm.Dy = qrY
-		qrWm.Scale = qrSize  // Use optimized QR size
-		qrWm.Rotation = 0
-		qrWm.Diagonal = 0
-
-		// Generate and add text watermark
-		text, _ := textFormatting(signature.TextList)
-
-		textWm := model.DefaultWatermarkConfig()
-		textWm.Mode = model.WMText
-		textWm.TextString = text
-		textWm.Pos = types.TopCenter
-		textWm.Dx = textX
-		textWm.Dy = textY
-		textWm.FontName = "Times-Roman"
-		textWm.FontSize = fontSize         // Use optimized font size
-		textWm.ScaledFontSize = fontSize   // Use optimized font size
-		textWm.Scale = textScale           // Use optimized text scale
-		textWm.Color = color.Black
-		textWm.StrokeColor = color.Black
-		textWm.FillColor = color.Black
-		textWm.Rotation = 0
-		textWm.Diagonal = 0
-
-		// Add watermarks to the appropriate page
-		if pageWatermarks[actualPage] == nil {
-			pageWatermarks[actualPage] = []*model.Watermark{}
-		}
-		pageWatermarks[actualPage] = append(pageWatermarks[actualPage], qrWm, textWm)
-	}
-
-	// For now, we'll put overflow signatures on the last available page
-	// This is a simplified approach - in production you'd want to add actual new pages
-
-	// Add watermarks to all pages
-	err = api.AddWatermarksSliceMap(in, out, pageWatermarks, nil)
+	err = api.AddWatermarksFile(outFile, outFile, []string{targetPage}, rightText, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error on add watermarks to PDF: %v", err)
+		log.Println("Error adding right text watermark: ", err)
 	}
 
-	return out.Bytes(), nil
-}
-
-func qrCodeGenerate(qrContent string) ([]byte, error) {
-	qrBytes, err := qrcode.Encode(qrContent, qrcode.Medium, 256)
-	if err != nil {
-		return nil, fmt.Errorf("error on generate QR code: %v", err)
-	}
-	return qrBytes, nil
-}
-
-func textFormatting(textList []string) (string, int) {
-	var formattedLines []string
-
-	for _, text := range textList {
-		words := strings.Fields(text)
-		var currentLine string
-
-		for _, word := range words {
-			if len(currentLine)+len(word)+1 > maxLineLength {
-				formattedLines = append(formattedLines, currentLine)
-				currentLine = word
-			} else {
-				if currentLine != "" {
-					currentLine += " "
-				}
-				currentLine += word
-			}
-		}
-		if currentLine != "" {
-			formattedLines = append(formattedLines, currentLine)
-		}
-	}
-
-	return strings.Join(formattedLines, "\n"), len(formattedLines)
+	log.Println("Block added successfully at the end!")
 }

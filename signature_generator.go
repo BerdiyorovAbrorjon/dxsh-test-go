@@ -20,14 +20,29 @@ const (
 	maxLineLength = 32
 )
 
+// Rectangle represents a rectangular area in PDF coordinates
+type Rectangle struct {
+	X      float64 // Left edge
+	Y      float64 // Bottom edge (PDF coordinate system)
+	Width  float64
+	Height float64
+}
+
+// SignaturePlacement represents where a signature should be placed
+type SignaturePlacement struct {
+	Signature SignatureInfo
+	QRRect    Rectangle
+	TextRect  Rectangle
+	Page      int
+}
+
 type SignatureInfo struct {
 	QRContext string
 	TextList  []string
 }
 
 func main() {
-
-	inFile := "blank.pdf"
+	inFile := "content.pdf" // Use PDF with actual content for testing
 	signatureList := []SignatureInfo{
 		{
 			QRContext: "https://example.com/signature1",
@@ -74,6 +89,15 @@ func main() {
 				"2023 yil 16 fevral",
 			},
 		},
+		{
+			QRContext: "https://example.com/signature2",
+			TextList: []string{
+				"“Kelishildi”",
+				"“O‘ZBEKISTON RESPUBLIKASI IQTISODIYOT VA MOLIYA VAZIRLIGI HUZURIDAGI AXBOROT TEXNOLOGIYALARI MARKAZI” DAVLAT UNITAR KORXONASI",
+				"AXMADOV DILMUROD ELMUROD O‘G‘LI",
+				"2023 yil 16 fevral",
+			},
+		},
 	}
 
 	pdfFile, err := os.Open(inFile)
@@ -92,12 +116,12 @@ func main() {
 		log.Fatalf("PDF ga QR code qoshishda xatolik: %v", err)
 	}
 
-	err = os.WriteFile("output.pdf", out, 0644)
+	err = os.WriteFile("sample.pdf", out, 0644)
 	if err != nil {
 		log.Fatalf("Natija PDF faylini yozishda xatolik: %v", err)
 	}
 
-	log.Println("PDF ga QR code muvaffaqiyatli qoshildi:output.pdf")
+	log.Println("PDF ga QR code muvaffaqiyatli qoshildi: sample.pdf")
 }
 
 func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byte, error) {
@@ -108,111 +132,137 @@ func AddSignatureListToPDF(pdfData []byte, signatureList []SignatureInfo) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("PDF oqishda xatolik: %v", err)
 	}
-	pageCount := ctx.PageCount
+	originalPageCount := ctx.PageCount
 
-	// Add new page to end of the document
-	err = api.InsertPages(in, out, []string{fmt.Sprintf("%d", pageCount)}, false, pdfcpu.DefaultPageConfiguration(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("sahifa qo'shishda xatolik: %v", err)
+	// Step 1: Always create new pages for ALL signatures (no placement on existing pages)
+	var signaturePlacements []SignaturePlacement
+
+	log.Printf("Creating new pages for all %d signatures", len(signatureList))
+
+	// Step 2: Calculate how many new pages we need
+	signaturesPerNewPage := 6 // 3x2 grid on new pages
+	newPagesNeeded := (len(signatureList) + signaturesPerNewPage - 1) / signaturesPerNewPage
+
+	// Step 3: Add new pages
+	currentData := pdfData
+	newPagesAdded := 0
+
+	for i := 0; i < newPagesNeeded; i++ {
+		in = bytes.NewReader(currentData)
+		out.Reset()
+
+		err = api.InsertPages(in, out, []string{fmt.Sprintf("%d", originalPageCount+i)}, false, pdfcpu.DefaultPageConfiguration(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("sahifa qo'shishda xatolik: %v", err)
+		}
+		currentData = out.Bytes()
+		newPagesAdded++
 	}
-	mid := out.Bytes()
-	in = bytes.NewReader(mid)
-	out.Reset()
-	pageCount++
 
-	var pageWidth = 595.0  // A4 width (210 mm)
-	var pageHeight = 842.0 // A4 height (297 mm)
+	log.Printf("Added %d new pages for all signatures", newPagesAdded)
 
-	// Simple and working layout configuration
-	itemsPerRow := 2 // 2 signatures per row
+	// Step 4: Place ALL signatures on new pages with grid layout
+	for i, signature := range signatureList {
+		pageIndex := i / signaturesPerNewPage
+		positionOnPage := i % signaturesPerNewPage
+		actualPage := originalPageCount + pageIndex + 1
 
-	// Simple positioning - use negative values for TopCenter positioning
-	// TopCenter means offset from center of page
-	startX := -150.0 // Start position for first signature
-	startY := -120.0 // Start position with proper top margin
+		// Grid layout for new pages
+		row := positionOnPage / 2
+		col := positionOnPage % 2
 
-	horizontalSpacing := 300.0 // Horizontal spacing between signatures
-	verticalSpacing := 280.0   // Vertical spacing between rows
-	qrTextSpacing := 80.0      // Space between QR and text (QR above text)
+		// Calculate positions using ORIGINAL PERFECT system for new pages
+		startX := -150.0 + float64(col)*300.0
+		startY := -120.0 - float64(row)*280.0
 
-	// Signature component sizing
-	qrSize := 0.15    // QR code scale
-	textScale := 0.35 // Text scale for readability
-	fontSize := 9     // Font size for better fit (int type)
+		qrRect := Rectangle{
+			X: startX, Y: startY + 90, // QR above text - ORIGINAL PERFECT SPACING
+			Width: 60, Height: 60, // ORIGINAL PERFECT SIZE
+		}
 
-	// Simple calculation for max rows
-	maxRowsPerPage := 2 // Keep it simple - 2 rows per page
+		textRect := Rectangle{
+			X: startX, Y: startY,
+			Width: 150, Height: 80, // ORIGINAL PERFECT SIZE
+		}
 
-	log.Printf("A4 Layout: %.0fx%.0f points, Simple positioning with %d max rows",
-		pageWidth, pageHeight, maxRowsPerPage)
+		placement := SignaturePlacement{
+			Signature: signature,
+			QRRect:    qrRect,
+			TextRect:  textRect,
+			Page:      actualPage,
+		}
 
-	// Group signatures by pages
+		signaturePlacements = append(signaturePlacements, placement)
+
+		log.Printf("Placed signature %d on new page %d (row %d, col %d)",
+			i+1, actualPage, row, col)
+	}
+
+	// Step 8: Convert placements to watermarks and apply them
 	pageWatermarks := make(map[int][]*model.Watermark)
 
-	for i, signature := range signatureList {
-		// Simple approach: put all signatures on the last page but with proper positioning
-		actualPage := pageCount
-
-		// Calculate position for proper grid layout
-		row := i / itemsPerRow
-		col := i % itemsPerRow
-
-		// Calculate position for this signature using optimized spacing
-		textX := startX + float64(col)*horizontalSpacing
-		textY := startY - float64(row)*verticalSpacing
-		qrX := textX
-		qrY := textY + qrTextSpacing
-
-		// Generate and add QR code watermark
-		qrBytes, err := qrCodeGenerate(signature.QRContext)
+	for _, placement := range signaturePlacements {
+		// Generate QR code
+		qrBytes, err := qrCodeGenerate(placement.Signature.QRContext)
 		if err != nil {
 			return nil, fmt.Errorf("QR code yaratishda xatolik: %v", err)
 		}
 
+		// Create QR watermark
 		qrWm := model.DefaultWatermarkConfig()
 		qrWm.Mode = model.WMImage
 		qrWm.Image = bytes.NewReader(qrBytes)
+
+		// Use TopCenter positioning for ALL pages - SAME SYSTEM
 		qrWm.Pos = types.TopCenter
-		qrWm.Dx = qrX
-		qrWm.Dy = qrY
-		qrWm.Scale = qrSize // Use optimized QR size
+		qrWm.Dx = placement.QRRect.X
+		qrWm.Dy = placement.QRRect.Y
+
+		qrWm.Scale = 0.15 // ORIGINAL PERFECT SCALE
 		qrWm.Rotation = 0
 		qrWm.Diagonal = 0
+		qrWm.Opacity = 0.95 // Keep only transparency to reduce white background
 
-		// Generate and add text watermark
-		text, _ := textFormatting(signature.TextList)
+		// Create text watermark
+		text, _ := textFormatting(placement.Signature.TextList)
 
 		textWm := model.DefaultWatermarkConfig()
 		textWm.Mode = model.WMText
 		textWm.TextString = text
+
+		// Use TopCenter positioning for ALL pages - SAME SYSTEM
 		textWm.Pos = types.TopCenter
-		textWm.Dx = textX
-		textWm.Dy = textY
+		textWm.Dx = placement.TextRect.X
+		textWm.Dy = placement.TextRect.Y
+
 		textWm.FontName = "Times-Roman"
-		textWm.FontSize = fontSize       // Use optimized font size
-		textWm.ScaledFontSize = fontSize // Use optimized font size
-		textWm.Scale = textScale         // Use optimized text scale
+		textWm.FontSize = 9       // ORIGINAL PERFECT SIZE
+		textWm.ScaledFontSize = 9 // ORIGINAL PERFECT SIZE
+		textWm.Scale = 0.35       // ORIGINAL PERFECT SCALE
 		textWm.Color = color.Black
-		textWm.StrokeColor = color.Black
-		textWm.FillColor = color.Black
+		// Try removing stroke and fill colors that might create white backgrounds
 		textWm.Rotation = 0
 		textWm.Diagonal = 0
+		textWm.Opacity = 0.95 // Slight transparency to reduce white background
 
-		// Add watermarks to the appropriate page
-		if pageWatermarks[actualPage] == nil {
-			pageWatermarks[actualPage] = []*model.Watermark{}
+		// Add to page watermarks
+		if pageWatermarks[placement.Page] == nil {
+			pageWatermarks[placement.Page] = []*model.Watermark{}
 		}
-		pageWatermarks[actualPage] = append(pageWatermarks[actualPage], qrWm, textWm)
+		pageWatermarks[placement.Page] = append(pageWatermarks[placement.Page], qrWm, textWm)
 	}
 
-	// For now, we'll put overflow signatures on the last available page
-	// This is a simplified approach - in production you'd want to add actual new pages
-
-	// Add watermarks to all pages
+	// Step 9: Apply all watermarks
+	in = bytes.NewReader(currentData)
+	out.Reset()
 	err = api.AddWatermarksSliceMap(in, out, pageWatermarks, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error on add watermarks to PDF: %v", err)
 	}
+
+	log.Printf("Successfully placed %d signatures on %d new pages",
+		len(signaturePlacements),
+		newPagesAdded)
 
 	return out.Bytes(), nil
 }
@@ -249,4 +299,12 @@ func textFormatting(textList []string) (string, int) {
 	}
 
 	return strings.Join(formattedLines, "\n"), len(formattedLines)
+}
+
+// min returns the minimum of two int values
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
